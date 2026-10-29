@@ -43,7 +43,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14p
 header.top{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:18px}
 header.top h1{font-size:21px;font-weight:600;margin:0;letter-spacing:-.01em}
 header.top p{margin:0;color:var(--muted)}
-.ai-pill{margin-left:auto;font-size:12px;padding:3px 10px;border-radius:999px;background:var(--line);color:var(--muted)}
+.ai-pill{border:0;cursor:default;font:inherit;font-size:12px;min-height:0!important;margin-left:auto;font-size:12px;padding:3px 10px;border-radius:999px;background:var(--line);color:var(--muted)}
 .ai-pill.on{background:var(--ok-soft);color:var(--ok)}
 .ai-pill.off{background:var(--warn-soft);color:var(--warn)}
 .grid{display:grid;grid-template-columns:minmax(0,460px) minmax(0,1fr);gap:24px;align-items:start}
@@ -155,7 +155,7 @@ details.settings .body{display:flex;flex-direction:column;gap:10px}
   <header class="top">
     <h1>외근 영수증 증빙</h1>
     <p>영수증 사진을 올리면 이동 순서대로 정리해 A4 2단 첨부 문서를 만들어 줍니다.</p>
-    <span class="ai-pill" id="aiPill">글자 인식 준비 중…</span>
+    <button type="button" class="ai-pill" id="aiPill">글자 인식 준비 중…</button>
   </header>
 
   <div class="grid">
@@ -245,11 +245,11 @@ details.settings .body{display:flex;flex-direction:column;gap:10px}
     <button id="mGen">문서 만들기</button>
     <button class="primary" id="mPdf">PDF 보내기</button>
   </div>
-  <p class="hint" style="margin-top:24px">영수증 이미지와 글자 인식은 모두 이 기기 안에서 처리되고 어디로도 전송되지 않습니다. 올린 영수증은 ‘새 외근 시작’을 누르기 전까지 이 기기 브라우저에 임시 보관됩니다. 사용한 공개 소프트웨어: Tesseract OCR·tesseract.js-core (<a href="ocr/LICENSE.txt">Apache-2.0</a>), jsPDF (<a href="lib/jspdf-LICENSE.txt">MIT</a>), JSZip (<a href="lib/jszip-LICENSE.txt">MIT/GPLv3</a>)</p>
+  <p class="hint" style="margin-top:24px">영수증 이미지와 글자 인식은 모두 이 기기 안에서 처리되고 어디로도 전송되지 않습니다. 올린 영수증은 ‘새 외근 시작’을 누르기 전까지 이 기기 브라우저에 임시 보관됩니다. 사용한 공개 소프트웨어: Tesseract OCR·tesseract.js-core (<a href="tesseract-LICENSE.txt">Apache-2.0</a>), jsPDF (<a href="jspdf-LICENSE.txt">MIT</a>), JSZip (<a href="jszip-LICENSE.txt">MIT/GPLv3</a>)</p>
 </div>
 
-<script src="lib/jspdf.umd.min.js"></script>
-<script src="lib/jszip.min.js"></script>
+<script src="jspdf.umd.min.js"></script>
+<script src="jszip.min.js"></script>
 <script>
 (() => {
 "use strict";
@@ -321,7 +321,7 @@ let ocrState = "loading";
 function setPill() {
   const p = $("#aiPill");
   if (ocrState === "ready") { p.className = "ai-pill on"; p.textContent = "영수증 읽기 준비됨 · 이 브라우저에서 처리"; }
-  else if (ocrState === "fail") { p.className = "ai-pill off"; p.textContent = "글자 인식을 불러오지 못함 · 설명 직접 입력"; }
+  else if (ocrState === "fail") { p.className = "ai-pill off"; p.textContent = "글자 인식을 불러오지 못함 · 눌러서 원인 보기·다시 시도"; const s = $("#genStatus"); s.className = "status err"; s.textContent = "원인: " + ocrErr; }
   else { p.className = "ai-pill"; p.textContent = "글자 인식 준비 중… (처음 한 번 약 6MB)"; }
 }
 
@@ -351,44 +351,93 @@ function WORKER_MAIN() {
     }
   };
 }
-let ocrWorker = null, ocrReady = null, ocrSeq = 0; const ocrJobs = new Map();
+let ocrRun = null, ocrReady = null, ocrSeq = 0, ocrErr = ""; const ocrJobs = new Map();
+const OCR_FILES = { simd: "tesseract-core-simd-lstm.wasm.js", plain: "tesseract-core-lstm.wasm.js", data: "kor.traineddata" };
+async function fetchFile(p, how) {
+  let r;
+  try { r = await fetch(p); } catch (e) { throw new Error(`${p} 내려받기 실패 (${(e && e.message) || e})`); }
+  if (!r.ok) throw new Error(`${p} 파일이 서버에 없어요 (${r.status})`);
+  return r[how]();
+}
+function withTimeout(p, ms, what) { return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(what + " 시간 초과")), ms))]); }
+async function startWorker(coreText, data) {
+  const url = URL.createObjectURL(new Blob([coreText, "\n;(" + WORKER_MAIN.toString() + ")();"], { type: "text/javascript" }));
+  const w = new Worker(url);
+  try {
+    await withTimeout(new Promise((res, rej) => {
+      w.onmessage = e => { if (e.data.type === "ready") res(); else if (e.data.type === "error") rej(new Error(e.data.message)); };
+      w.onerror = e => { e.preventDefault && e.preventDefault(); rej(new Error(e.message || "worker error")); };
+      w.postMessage({ type: "init", data }, [data]);
+    }), 90000, "엔진 시작");
+  } catch (e) { w.terminate(); throw e; }
+  w.onmessage = e => { const j = ocrJobs.get(e.data.id); if (!j) return; ocrJobs.delete(e.data.id); e.data.type === "result" ? j.res(e.data.text) : j.rej(new Error(e.data.message)); };
+  w.onerror = null;
+  ocrRun = png => new Promise((res, rej) => { const id = ++ocrSeq; ocrJobs.set(id, { res, rej }); w.postMessage({ type: "ocr", id, png }, [png]); });
+}
+function loadScript(src) {
+  return new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error(src + " 불러오기 실패")); document.head.append(s); });
+}
+async function startMain(file, data) {
+  if (typeof window.TesseractCore !== "function") await loadScript(file);
+  const M = await withTimeout(window.TesseractCore({}), 90000, "엔진 시작");
+  M.FS.writeFile("./kor.traineddata", new Uint8Array(data));
+  const api = new M.TessBaseAPI();
+  if (api.Init(null, "kor", 1) !== 0) throw new Error("init failed");
+  api.SetVariable("tessedit_pageseg_mode", "6"); api.SetVariable("preserve_interword_spaces", "1");
+  ocrRun = async png => {
+    await new Promise(r => setTimeout(r, 30));
+    M.FS.writeFile("/input", new Uint8Array(png));
+    if (api.SetImageFile(1, 0) === 1) throw new Error("image read failed");
+    api.Recognize(null); return api.GetUTF8Text();
+  };
+}
 function initOCR() {
   if (ocrReady) return ocrReady;
-  ocrState = "loading"; setPill();
+  ocrState = "loading"; ocrErr = ""; setPill();
   ocrReady = (async () => {
     let simd = false;
     try { simd = WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,10,1,8,0,65,0,253,15,253,98,11])); } catch {}
-    const get = async (p, how) => { const r = await fetch(p); if (!r.ok) throw new Error(p + " " + r.status); return r[how](); };
-    const [core, data] = await Promise.all([
-      get("ocr/" + (simd ? "tesseract-core-simd-lstm.wasm.js" : "tesseract-core-lstm.wasm.js"), "text"),
-      get("ocr/kor.traineddata", "arrayBuffer")
-    ]);
-    const url = URL.createObjectURL(new Blob([core, "\n;(" + WORKER_MAIN.toString() + ")();"], { type: "text/javascript" }));
-    const w = new Worker(url);
-    await new Promise((res, rej) => {
-      w.onmessage = e => { if (e.data.type === "ready") res(); else if (e.data.type === "error") rej(new Error(e.data.message)); };
-      w.onerror = e => rej(new Error(e.message || "worker error"));
-      w.postMessage({ type: "init", data }, [data]);
-    });
-    w.onmessage = e => { const j = ocrJobs.get(e.data.id); if (!j) return; ocrJobs.delete(e.data.id); e.data.type === "result" ? j.res(e.data.text) : j.rej(new Error(e.data.message)); };
-    ocrWorker = w; ocrState = "ready"; setPill();
+    if (typeof WebAssembly !== "object") throw new Error("이 브라우저는 WebAssembly를 지원하지 않아요");
+    const data = await fetchFile(OCR_FILES.data, "arrayBuffer");
+    const cores = simd ? [OCR_FILES.simd, OCR_FILES.plain] : [OCR_FILES.plain];
+    const errs = [];
+    if (typeof Worker === "function" && !FORCE_MAIN) {
+      for (const c of cores) {
+        try { const txt = await fetchFile(c, "text"); await startWorker(txt, data.slice(0)); return "worker:" + c; }
+        catch (e) { errs.push(`${c} (백그라운드): ${e.message}`); }
+      }
+    }
+    try { await startMain(OCR_FILES.plain, data.slice(0)); return "main"; }
+    catch (e) { errs.push(`기본 방식: ${e.message}`); }
+    throw new Error(errs.join(" / "));
   })();
-  ocrReady.catch(err => {
-    console.error("OCR load failed", err); ocrState = "fail"; setPill();
+  ocrReady.then(mode => {
+    console.info("OCR ready:", mode); ocrState = "ready"; setPill();
+    receipts.filter(r => r.status === "manual" && r.src).forEach(enqueueRead);
+  }, err => {
+    console.error("OCR load failed", err); ocrErr = (err && err.message) || String(err); ocrState = "fail"; setPill();
     receipts.forEach(r => { if (["waiting", "reading", "queued"].includes(r.status)) r.status = "manual"; });
     renderReceipts();
   });
   return ocrReady;
 }
+const FORCE_MAIN = /[?&]ocr=main/.test(location.search);
+$("#aiPill").addEventListener("click", () => {
+  if (ocrState !== "fail") return;
+  const s = $("#genStatus"); s.className = "status err"; s.textContent = "원인: " + ocrErr + " — 다시 불러오는 중…";
+  ocrReady = null; initOCR();
+});
 async function ocrImage(r) {
   await ocrReady;
   const k = r.w < 1200 ? 1400 / r.w : r.w > 1800 ? 1600 / r.w : 1;
   const c = document.createElement("canvas"); c.width = Math.round(r.w * k); c.height = Math.round(r.h * k);
   const cx = c.getContext("2d"); cx.filter = "grayscale(1)"; cx.imageSmoothingQuality = "high"; cx.drawImage(r.src, 0, 0, c.width, c.height);
-  const png = await (await new Promise(res => c.toBlob(res, "image/png"))).arrayBuffer();
-  return new Promise((res, rej) => { const id = ++ocrSeq; ocrJobs.set(id, { res, rej }); ocrWorker.postMessage({ type: "ocr", id, png }, [png]); });
+  const blob = await new Promise(res => c.toBlob(res, "image/png"));
+  if (!blob) throw new Error("이미지 변환 실패");
+  return ocrRun(await blob.arrayBuffer());
 }
 setTimeout(initOCR, 300);
+
 
 /* ---------- 영수증 업로드 ---------- */
 const drop = $("#drop"), fileIn = $("#file");
@@ -823,6 +872,7 @@ $("#pdfBtn").onclick = async () => {
   const b = $("#pdfBtn"); b.disabled = true; $("#exportStatus").textContent = "PDF 만드는 중…";
   try {
     await fontsReady();
+    if (!window.jspdf) throw new Error("jspdf.umd.min.js 파일이 서버에 없어요");
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
     const pages = paginate(docEntries()); const cv = document.createElement("canvas");
