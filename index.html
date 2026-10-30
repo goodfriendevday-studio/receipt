@@ -113,12 +113,18 @@ details.settings .body{display:flex;flex-direction:column;gap:10px}
 .sync-state{font-size:12.5px;padding:3px 10px;border-radius:999px;align-self:flex-start;background:var(--line);color:var(--muted)}
 .sync-state.on{background:var(--ok-soft);color:var(--ok)}
 .sync-state.off{background:var(--warn-soft);color:var(--warn)}
-.qr{flex:none;width:112px;height:112px;background:#fff;border-radius:6px;padding:6px;display:grid;place-items:center;font-size:10px;color:#5f6864;text-align:center}
+.qr{flex:none;width:148px;height:148px;background:#fff;border-radius:6px;padding:6px;display:grid;place-items:center;font-size:10px;color:#5f6864;text-align:center}
 .qr svg,.qr img{width:100%;height:100%;display:block}
 .only-mobile{display:none}
 .up-btns{display:flex;gap:8px}
 .up-btns button{flex:1;min-height:48px;font-weight:600}
 .mbar{display:none}
+.upmode{max-width:560px;margin:0 auto}
+.upmode h2{font-size:17px;margin:0}
+.upmode .up-btns{display:flex}
+.is-up .grid,.is-up .mbar,.is-up #aiPill,.is-up .wrap>p.hint,.is-up header.top p{display:none!important}
+.is-up .wrap{padding-bottom:32px!important}
+.thumb.fail{border-color:var(--accent)}
 @media (max-width:700px){
   body{font-size:15px}
   input,select,textarea{font-size:16px;padding:9px 10px}
@@ -132,7 +138,6 @@ details.settings .body{display:flex;flex-direction:column;gap:10px}
   header.top p{font-size:13px}
   .ai-pill{margin-left:0}
   .c-sync{order:0}.c-upload{order:1}.c-trip{order:2}.c-items{order:3}.c-settings{order:4}
-  .qr{display:none}
   .drop{padding:14px}
   .thumbs{grid-template-columns:repeat(3,minmax(0,1fr))}
   .item{grid-template-columns:28px 44px minmax(0,1fr);grid-template-areas:"n i b" "c c c"}
@@ -158,14 +163,36 @@ details.settings .body{display:flex;flex-direction:column;gap:10px}
     <button type="button" class="ai-pill" id="aiPill">글자 인식 준비 중…</button>
   </header>
 
+  <section id="upMode" class="card upmode" hidden>
+    <h2>PC로 영수증 보내기</h2>
+    <p class="hint">사진을 고르면 바로 PC 화면으로 넘어가요. 사진은 PC가 받는 즉시 중계 서버에서 지워지고, 늦어도 1시간 뒤 자동으로 지워집니다.</p>
+    <div class="up-btns">
+      <button class="primary" id="upPick">사진·캡처 선택</button>
+      <button id="upCam">카메라로 찍기</button>
+    </div>
+    <input type="file" id="upFile" accept="image/*" multiple class="sr">
+    <input type="file" id="upCamIn" accept="image/*" capture="environment" class="sr">
+    <p class="status" id="upStatus"></p>
+    <div class="thumbs" id="upList"></div>
+  </section>
+
   <div class="grid">
     <div class="col">
       <section class="card sync c-sync">
         <div class="txt">
-          <h2>휴대폰에서 바로 만들기</h2>
-          <p class="hint">영수증 사진·캡처를 고르고 ‘문서 만들기’를 누른 뒤, <b>PDF 보내기</b>로 Teams 본인 채팅이나 카톡 ‘나와의 채팅’, 메일로 보내면 PC에서 받을 수 있어요. 영수증은 이 기기 밖으로 나가지 않아요.</p>
+          <div id="relayBox" hidden>
+            <h2>휴대폰으로 영수증 보내기</h2>
+            <p class="hint">휴대폰 카메라로 QR을 찍으면 업로드 화면이 열려요. 사진을 고르면 이 화면에 바로 들어옵니다. 로그인이나 앱 설치는 필요 없어요.</p>
+            <span class="sync-state" id="relayState">준비 중…</span>
+            <div class="actions"><button class="ghost" id="relayResume" hidden>다시 받기</button><button class="ghost" id="relayNew" style="padding-left:0">새 QR 만들기</button></div>
+          </div>
+          <div id="howBox">
+            <h2>휴대폰에서 바로 만들기</h2>
+            <p class="hint">영수증 사진·캡처를 고르고 ‘문서 만들기’를 누른 뒤, <b>PDF 보내기</b>로 Teams 본인 채팅이나 카톡 ‘나와의 채팅’, 메일로 보내면 PC에서 받을 수 있어요.</p>
+          </div>
           <div class="actions"><button class="ghost" id="newTrip" style="padding-left:0">새 외근 시작 (영수증·항목 비우기)</button></div>
         </div>
+        <div class="qr" id="qr" hidden aria-label="휴대폰으로 찍을 QR 코드"></div>
       </section>
 
       <section class="card c-settings">
@@ -245,15 +272,20 @@ details.settings .body{display:flex;flex-direction:column;gap:10px}
     <button id="mGen">문서 만들기</button>
     <button class="primary" id="mPdf">PDF 보내기</button>
   </div>
-  <p class="hint" style="margin-top:24px">영수증 이미지와 글자 인식은 모두 이 기기 안에서 처리되고 어디로도 전송되지 않습니다. 올린 영수증은 ‘새 외근 시작’을 누르기 전까지 이 기기 브라우저에 임시 보관됩니다. 사용한 공개 소프트웨어: Tesseract OCR·tesseract.js-core (<a href="tesseract-LICENSE.txt">Apache-2.0</a>), jsPDF (<a href="jspdf-LICENSE.txt">MIT</a>), JSZip (<a href="jszip-LICENSE.txt">MIT/GPLv3</a>)</p>
+  <p class="hint" style="margin-top:24px">영수증 글자 인식과 문서 만들기는 모두 이 기기 안에서 처리됩니다. QR로 휴대폰에서 보낸 사진만 중계 서버를 잠깐 거치며, PC가 받는 즉시(늦어도 1시간 뒤) 지워집니다. 올린 영수증은 ‘새 외근 시작’을 누르기 전까지 이 기기 브라우저에 임시 보관됩니다. 사용한 공개 소프트웨어: Tesseract OCR·tesseract.js-core (<a href="tesseract-LICENSE.txt">Apache-2.0</a>), jsPDF (<a href="jspdf-LICENSE.txt">MIT</a>), JSZip (<a href="jszip-LICENSE.txt">MIT/GPLv3</a>), QR Code Generator (<a href="qrcode-LICENSE.txt">MIT</a>)</p>
 </div>
 
+<script src="config.js"></script>
+<script src="qrcode.js"></script>
 <script src="jspdf.umd.min.js"></script>
 <script src="jszip.min.js"></script>
 <script>
 (() => {
 "use strict";
 const $ = s => document.querySelector(s);
+const RELAY = String(window.RECEIPT_RELAY || "").trim().replace(/\/+$/, "");
+const UP_SID = (location.search.match(/[?&]up=([A-Za-z0-9_-]{20,64})/) || [])[1] || "";
+const IS_DESKTOP = window.matchMedia("(min-width: 701px)").matches && !window.matchMedia("(pointer: coarse)").matches;
 const LS = {
   get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
@@ -436,7 +468,7 @@ async function ocrImage(r) {
   if (!blob) throw new Error("이미지 변환 실패");
   return ocrRun(await blob.arrayBuffer());
 }
-setTimeout(initOCR, 300);
+if (!UP_SID) setTimeout(initOCR, 300);
 
 
 /* ---------- 영수증 업로드 ---------- */
@@ -460,13 +492,14 @@ async function hashOf(buf) {
   catch { return buf.byteLength + ":" + new Uint8Array(buf.slice(0, 64)).join(","); }
 }
 async function addFiles(files) {
+  let added = 0;
   for (const f of files) {
     const r = { id: nid("r"), name: f.name || "image", status: "loading", data: null, createdAt: Date.now() };
     try {
       const buf = await f.arrayBuffer();
       const h = await hashOf(buf);
       if (receipts.some(x => x.hash === h)) { flash(`‘${r.name}’은 이미 올린 영수증이라 건너뛰었어요.`); continue; }
-      r.hash = h; receipts.push(r); renderReceipts();
+      r.hash = h; receipts.push(r); added++; renderReceipts();
       let bmp;
       try { bmp = await createImageBitmap(new Blob([buf], { type: f.type })); }
       catch { throw new Error("이 형식은 열 수 없어요. JPG나 PNG로 저장해서 올려 주세요(아이폰 HEIC는 캡쳐로)."); }
@@ -484,6 +517,7 @@ async function addFiles(files) {
     }
   }
   schedule();
+  return added;
 }
 let flashT;
 function flash(msg) { const s = $("#genStatus"); s.textContent = msg; s.className = "status"; clearTimeout(flashT); flashT = setTimeout(() => { if (s.textContent === msg) s.textContent = ""; }, 5000); }
@@ -975,6 +1009,7 @@ async function loadSaved(r, blob) {
   renderReceipts(); renderItems(); schedule();
 }
 (async () => {
+  if (UP_SID) return;
   const st = LS.get("rcpt.items", null);
   if (st && Array.isArray(st.list)) { items = st.list.map(x => ({ id: String(x.id), receiptId: x.receiptId || null, comment: String(x.comment || "") })); notes = st.notes || []; }
   let saved = [];
@@ -1000,6 +1035,7 @@ $("#newTrip").onclick = async () => {
   receipts = []; items = []; notes = []; queue.length = 0;
   trip.date = ""; trip.route = ""; trip.mealNote = ""; saveTrip(); fillInputs();
   renderReceipts(); afterItems(); flash("새 외근을 시작했어요.");
+  if (relayOn) $("#relayNew").click();
   for (const r of old) { if (r.url) URL.revokeObjectURL(r.url); await deleteRemote(r); }
 };
 const CAN_SHARE = (() => { try { return !!(navigator.canShare && navigator.canShare({ files: [new File(["x"], "a.pdf", { type: "application/pdf" })] })); } catch { return false; } })();
@@ -1030,6 +1066,132 @@ function downloadFile(blob, name) {
   document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
   const s = $("#exportStatus"); s.className = "status"; s.textContent = `${name}을 저장했어요.`;
 }
+
+/* ---------- 휴대폰 → PC 사진 전송 (QR) ---------- */
+let relaySid = "", relayTimer = null, relayLast = 0, relayGot = new Set(), relayCount = 0, relayOn = false;
+const relayUrl = p => RELAY + "/s/" + relaySid + (p ? "/" + p : "");
+function newSid() { const a = new Uint8Array(18); crypto.getRandomValues(a); return btoa(String.fromCharCode(...a)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+function setRelay(cls, msg) { const el = $("#relayState"); el.className = "sync-state " + cls; el.textContent = msg; }
+function startRelay(fresh) {
+  if (!RELAY || !IS_DESKTOP || UP_SID) return;
+  let sid = ""; try { sid = fresh ? "" : (sessionStorage.getItem("rcpt.sid") || ""); } catch {}
+  relaySid = sid || newSid(); try { sessionStorage.setItem("rcpt.sid", relaySid); } catch {}
+  relayGot = new Set(); relayCount = 0; relayOn = true;
+  $("#relayBox").hidden = false; $("#howBox").hidden = true; $("#qr").hidden = false;
+  const link = location.origin + location.pathname + "?up=" + relaySid;
+  try { const q = qrcode(0, "M"); q.addData(link); q.make(); $("#qr").innerHTML = q.createSvgTag({ cellSize: 4, margin: 2, scalable: true }); }
+  catch { $("#qr").textContent = "QR을 만들지 못했어요"; }
+  setRelay("", "휴대폰 카메라로 QR을 찍어 주세요");
+  resumeRelay();
+}
+function resumeRelay() { clearTimeout(relayTimer); $("#relayResume").hidden = true; relayLast = Date.now(); tick(); }
+async function tick() {
+  relayTimer = null;
+  if (document.hidden) { relayTimer = setTimeout(tick, 4000); return; }
+  if (Date.now() - relayLast > 20 * 60 * 1000) { setRelay("", "20분 동안 새 사진이 없어 받기를 쉬고 있어요"); $("#relayResume").hidden = false; return; }
+  const sid = relaySid;
+  try {
+    const r = await fetch(relayUrl(), { cache: "no-store" });
+    if (!r.ok) throw new Error(String(r.status));
+    const j = await r.json();
+    for (const it of (j.items || [])) {
+      if (sid !== relaySid || relayGot.has(it.id)) continue;
+      const b = await fetch(relayUrl(it.id), { cache: "no-store" });
+      if (!b.ok) continue;
+      relayGot.add(it.id);
+      const blob = await b.blob();
+      relayLast = Date.now();
+      const n = await addFiles([new File([blob], it.name || "receipt.jpg", { type: blob.type || "image/jpeg" })]);
+      if (n) { relayCount++; flash(`휴대폰에서 영수증이 들어왔어요 (${relayCount}장)`); }
+    }
+    if (sid === relaySid) setRelay("on", relayCount ? `휴대폰에서 ${relayCount}장 받음 · 계속 받는 중` : "휴대폰 카메라로 QR을 찍어 주세요");
+  } catch (e) {
+    setRelay("off", "중계 서버에 연결하지 못했어요 · 자동으로 다시 시도해요");
+  }
+  if (sid === relaySid && !relayTimer) relayTimer = setTimeout(tick, 2500);
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden && relayOn && relayTimer) { clearTimeout(relayTimer); tick(); } });
+$("#relayResume").onclick = resumeRelay;
+$("#relayNew").onclick = () => { if (relaySid) fetch(relayUrl(), { method: "DELETE" }).catch(() => {}); clearTimeout(relayTimer); relayTimer = null; startRelay(true); };
+
+/* ---------- 휴대폰 전송 화면 (?up=…) ---------- */
+const upItems = [];
+async function shrink(file) {
+  const bmp = await createImageBitmap(file);
+  let max = 1800, q = 0.85, blob = null;
+  for (let i = 0; i < 5; i++) {
+    const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    const cx = c.getContext("2d"); cx.fillStyle = "#fff"; cx.fillRect(0, 0, c.width, c.height); cx.drawImage(bmp, 0, 0, c.width, c.height);
+    blob = await new Promise(res => c.toBlob(res, "image/jpeg", q));
+    if (blob && blob.size <= 1800000) break;
+    q = Math.max(0.5, q - 0.1); max = Math.round(max * 0.85);
+  }
+  bmp.close && bmp.close();
+  if (!blob) throw new Error("convert");
+  return blob;
+}
+function renderUp() {
+  const box = $("#upList"); box.innerHTML = "";
+  upItems.forEach(it => {
+    const el = document.createElement("div"); el.className = "thumb" + (it.fail ? " fail" : "");
+    el.innerHTML = `${it.url ? "<img alt=\"\">" : "<div style=\"height:96px\"></div>"}<div class="st"></div>`;
+    if (it.url) el.querySelector("img").src = it.url;
+    const st = el.querySelector(".st"); st.textContent = it.status; st.className = "st" + (it.taken ? " ok" : it.fail ? " err" : "");
+    if (it.fail && it.file) { el.style.cursor = "pointer"; el.onclick = () => { upItems.splice(upItems.indexOf(it), 1); upFiles([it.file]); }; }
+    box.append(el);
+  });
+  const sent = upItems.filter(x => x.ok).length, taken = upItems.filter(x => x.taken).length;
+  $("#upStatus").textContent = !upItems.length ? "아직 보낸 사진이 없어요" : `${sent}장 보냄` + (taken ? ` · PC가 ${taken}장 받음` : "") + (sent && taken === sent ? " · 다 보냈으면 이 창을 닫아도 돼요" : "");
+}
+async function upFiles(files) {
+  for (const f of files) {
+    const it = { id: null, name: f.name || "receipt.jpg", status: "보내는 중…", url: null };
+    upItems.push(it); renderUp();
+    try {
+      const blob = await shrink(f);
+      it.url = URL.createObjectURL(blob); renderUp();
+      const r = await fetch(RELAY + "/s/" + UP_SID, { method: "POST", headers: { "Content-Type": "image/jpeg", "X-File-Name": encodeURIComponent(it.name) }, body: blob });
+      if (r.status === 429) throw new Error("full");
+      if (!r.ok) throw new Error(String(r.status));
+      it.id = (await r.json()).id; it.ok = true; it.status = "보냄 · PC 확인 기다리는 중";
+    } catch (e) {
+      it.fail = true; it.file = f;
+      it.status = e.message === "full" ? "한 번에 보낼 수 있는 장수(60장)를 넘었어요" : e.message === "convert" ? "이 사진은 열 수 없어요" : "보내지 못했어요 · 눌러서 다시 보내기";
+    }
+    renderUp();
+  }
+  watchTaken();
+}
+let watchT = null, watchUntil = 0;
+function watchTaken() {
+  watchUntil = Date.now() + 15 * 60 * 1000;
+  if (watchT) return;
+  const run = async () => {
+    watchT = null;
+    const pending = upItems.filter(x => x.ok && !x.taken);
+    if (!pending.length || Date.now() > watchUntil) return;
+    try {
+      const j = await (await fetch(RELAY + "/s/" + UP_SID, { cache: "no-store" })).json();
+      const taken = new Set(j.taken || []);
+      pending.forEach(x => { if (taken.has(x.id)) { x.taken = true; x.status = "PC가 받았어요 ✓"; } });
+      renderUp();
+    } catch {}
+    watchT = setTimeout(run, 3000);
+  };
+  watchT = setTimeout(run, 1500);
+}
+function initUpMode() {
+  document.body.classList.add("is-up");
+  $("#upMode").hidden = false;
+  if (!RELAY) { $("#upStatus").textContent = "중계 서버 주소가 설정되지 않아 보낼 수 없어요. 사이트 관리자에게 config.js 설정을 요청하세요."; $("#upPick").disabled = $("#upCam").disabled = true; return; }
+  const fi = $("#upFile"), cam = $("#upCamIn");
+  $("#upPick").onclick = () => fi.click(); $("#upCam").onclick = () => cam.click();
+  fi.onchange = () => { upFiles([...fi.files]); fi.value = ""; };
+  cam.onchange = () => { upFiles([...cam.files]); cam.value = ""; };
+  renderUp();
+}
+if (UP_SID) initUpMode(); else startRelay(false);
 
 // 시험용 훅 (페이지 동작에는 영향 없음)
 window.__rcpt = { addFiles, get items() { return items; }, set items(v) { items = v; afterItems(); }, receipts: () => receipts, paginate, docEntries, drawPage, settings };

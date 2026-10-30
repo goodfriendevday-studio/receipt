@@ -1,28 +1,51 @@
-외근 영수증 증빙 - 웹사이트 올리는 방법
+외근 영수증 증빙 - QR 보내기 기능 설치 방법
 
-이 폴더의 파일 15개를 그대로 웹 서버에 올리면 됩니다. (하위 폴더 없음)
-반드시 https 주소여야 합니다. (휴대폰 '보내기'와 임시 저장 기능이 https에서만 동작)
+준비물: 이미 만든 GitHub 사이트 저장소(receipt), 함께 받은 '영수증중계서버.zip'
+전체 약 15분, 처음 한 번만 하면 됩니다.
 
-[이미 GitHub에 올린 저장소를 고치는 경우]
-1. 저장소 첫 화면(Code)에서 Add file → Upload files
-2. 이 폴더의 파일 15개를 모두 선택해서 끌어다 놓기 → Commit changes (같은 이름은 새 파일로 바뀜)
-3. 예전에 올린 ocr, lib 폴더는 이제 필요 없습니다. (남아 있어도 문제는 없음)
-4. 1~3분 뒤 휴대폰에서 사이트를 새로고침. 상단에 '영수증 읽기 준비됨'이 뜨면 정상입니다.
-   * 계속 예전 화면이 보이면 휴대폰 브라우저를 완전히 닫았다가 다시 여세요.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+A. 중계 서버 만들기 (Cloudflare, 무료)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. GitHub 오른쪽 위 + → New repository
+   이름: receipt-relay / Public 선택 → Create repository
+2. "uploading an existing file" → '영수증중계서버.zip'을 푼 파일 4개
+   (index.js, wrangler.jsonc, package.json, README.md)를 선택해 끌어다 놓기 → Commit changes
+3. PC 브라우저 주소창에 아래 주소를 입력 (내아이디 부분만 바꾸기)
+   https://deploy.workers.cloudflare.com/?url=https://github.com/내아이디/receipt-relay
+4. Cloudflare 로그인 화면이 나오면 무료 가입(카드 등록 없음) → GitHub 연결 허용
+   설정 화면의 이름들은 그대로 두고 배포(Create / Deploy) 버튼 클릭
+   * Cloudflare가 내 GitHub에 저장소 사본을 하나 더 만들 수 있습니다. 정상입니다.
+5. 배포가 끝나면 나오는 주소를 복사해 두세요.
+   예: https://receipt-relay.내계정.workers.dev
+   이 주소를 브라우저로 열었을 때 {"ok":true,"service":"receipt-relay"} 가 보이면 성공
 
-[처음 GitHub Pages로 올리기 - 무료, 약 5분]
-1. github.com 에 로그인(계정이 없으면 가입)
-2. 오른쪽 위 + → New repository → 이름 예: receipt → Public 선택 → Create repository
-3. "uploading an existing file" 클릭 → 이 폴더의 파일 15개를 모두 선택해 끌어다 놓기 → Commit changes
-   * 폴더째 끌어다 놓지 말고, 폴더를 열어 안의 파일들을 선택하세요.
-4. 저장소의 Settings → Pages → Source: "Deploy from a branch", Branch: main / (root) → Save
-5. Actions 탭의 작업이 초록 체크가 되면 Settings → Pages 맨 위에 사이트 주소가 나옵니다.
-   (예: https://<내 아이디>.github.io/receipt/) 이 주소를 동료에게 공유하세요.
-   * 저장소는 공개되지만 프로그램 코드만 있고, 영수증 등 개인 데이터는 전혀 올라가지 않습니다.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+B. 사이트에 연결하기
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 기존 receipt 저장소 → Add file → Upload files
+   '영수증증빙_웹사이트.zip'을 푼 파일들을 모두 선택해 끌어다 놓기 → Commit changes
+7. 저장소 파일 목록에서 config.js 클릭 → 오른쪽 위 연필(Edit) 아이콘
+   window.RECEIPT_RELAY = ""; 의 따옴표 안에 5번 주소를 붙여넣기
+   → window.RECEIPT_RELAY = "https://receipt-relay.내계정.workers.dev";
+   → Commit changes
+8. 1~3분 뒤 PC에서 사이트를 새로고침하면 왼쪽 위에 QR이 나타납니다.
 
-[글자 인식이 안 될 때]
-화면 위 '글자 인식을 불러오지 못함' 표시를 누르면 원인이 나옵니다.
-'○○ 파일이 서버에 없어요'라고 나오면 그 파일을 다시 올리세요.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+쓰는 방법
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PC: 사이트 열기 → QR 표시
+휴대폰: 기본 카메라로 QR 찍기 → 뜨는 링크 열기 → 사진·캡처 선택
+PC: 사진이 자동으로 들어옴 → 외근 정보 입력 → 문서 만들기 → PDF 저장 → 회사 시스템에 첨부
+* 사진은 PC가 받는 즉시 중계 서버에서 지워지고, 늦어도 1시간 뒤 자동 삭제됩니다.
+* 다음 외근 때는 '새 외근 시작'을 누르면 영수증이 비워지고 QR도 새로 바뀝니다.
 
-[휴대폰 홈 화면에 추가]
-아이폰 사파리: 공유 버튼 → 홈 화면에 추가 / 안드로이드 크롬: 메뉴 → 홈 화면에 추가
+[선택] 우리 사이트에서만 중계 서버를 쓰게 막기
+receipt-relay 저장소의 index.js에서
+const ALLOWED_ORIGINS = []; 를
+const ALLOWED_ORIGINS = ["https://내아이디.github.io"]; 로 고치고 Commit
+(Cloudflare가 만든 사본 저장소가 있다면 그쪽 index.js를 고쳐야 자동 재배포됩니다)
+
+[문제가 생기면]
+- QR이 안 보임: config.js 주소가 맞는지, 주소 끝에 / 없이 넣었는지 확인
+- '중계 서버에 연결하지 못했어요': 5번 주소를 브라우저로 열어 ok가 나오는지 확인
+- 글자 인식 실패: 화면 위 표시를 누르면 원인이 나옵니다
