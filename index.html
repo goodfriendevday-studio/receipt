@@ -773,6 +773,7 @@ function renderItems() {
 
 /* ---------- 페이지 배치 (A4, mm) ---------- */
 const A4W = 210, A4H = 297, MARGIN = 8, GAP = 6, FS = 3.5, LH = 5.2, CAPGAP = 1.6;
+const PRE_GAP = 5; // 영수증 없는 줄(지하철·버스 등) 아래 간격(mm)
 function geometry() {
   const rows = settings.perPage === 4 ? 2 : 1;
   return { rows, cols: 2, sw: (A4W - 2 * MARGIN - GAP) / 2, sh: (A4H - 2 * MARGIN - (rows - 1) * GAP) / rows };
@@ -817,7 +818,7 @@ function fontStr(px) { return `400 ${px}px "Noto Sans KR","Malgun Gothic","Apple
 // 슬롯 안 배치를 mm 단위로 계산 (캔버스와 Word가 같이 씀)
 function slotLayout(slot, measureMm) {
   const g = geometry(); const out = { pre: [], img: null, cap: [] }; let y = 0;
-  slot.pre.forEach(t => { const lines = wrap(measureMm, label(t), g.sw); out.pre.push({ lines, y }); y += lines.length * LH + 1.5; });
+  slot.pre.forEach(t => { const lines = wrap(measureMm, label(t), g.sw); out.pre.push({ lines, y }); y += lines.length * LH + PRE_GAP; });
   if (slot.img) {
     const cap = wrap(measureMm, label(slot.img), g.sw);
     const maxH = g.sh - y - CAPGAP - cap.length * LH;
@@ -934,7 +935,7 @@ $("#docxBtn").onclick = async () => {
     const cell = (slot, w) => {
       if (!slot) return `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/></w:tcPr><w:p/></w:tc>`;
       const L = slotLayout(slot, meas); let x = "";
-      L.pre.forEach((p, i) => p.lines.forEach((l, k) => { x += wPara(k ? "   " + l : l, k === p.lines.length - 1 ? TW(1.5) : 0); }));
+      L.pre.forEach((p, i) => p.lines.forEach((l, k) => { x += wPara(k ? "   " + l : l, k === p.lines.length - 1 ? TW(PRE_GAP) : 0); }));
       if (L.img) {
         const r = slot.img.r; let rid = media.get(r.id);
         if (!rid) { pic++; rid = "rIdImg" + pic; media.set(r.id, rid); zip.file(`word/media/image${pic}.jpeg`, r.blob); rels.push(`<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image${pic}.jpeg"/>`); }
